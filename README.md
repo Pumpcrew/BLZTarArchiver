@@ -4,17 +4,17 @@ Pure Swift TAR/USTAR archiver with **PAX extended headers** and **proper GZIP su
 
 ## Features
 
-- ✅ **USTAR + PAX 지원** — 255바이트 넘는 경로나 긴 파일명 완벽 보존
-- ✅ **정식 GZIP 헤더/푸터** — zlib 기반 gzip, 100% 호환 (옵션으로 swift-nio-extras 사용 가능)
-- ✅ **실시간 진행률 콜백** — 전체 바이트 기준, 파일별 진행률까지 지원
-- ✅ iOS 13+, macOS 11+, tvOS 13+, watchOS 6+ 지원
-- ✅ 외부 의존성 없음 (선택적으로 swift-nio-extras)
+- ✅ **USTAR + PAX support** — Full preservation of long paths and file names (>255 bytes)
+- ✅ **Proper GZIP header/footer** — zlib-based gzip, 100% compatible (optional swift-nio-extras engine)
+- ✅ **Real-time progress callbacks** — Byte-based overall progress and per-file progress
+- ✅ Supports iOS 13+, macOS 11+, tvOS 13+, watchOS 6+
+- ✅ No external dependencies (optional swift-nio-extras)
 
 ## Installation (Swift Package Manager)
 
-Xcode에서:
-- File → Add Packages → `https://github.com/your-org/BLZTar.git`
-- 또는 `Package.swift`에 직접 추가:
+In Xcode:
+- Go to **File → Add Packages** → `https://github.com/your-org/BLZTar.git`
+- Or add to your `Package.swift` manually:
 
 ```swift
 .package(url: "https://github.com/your-org/BLZTar.git", from: "1.0.0")
@@ -25,7 +25,7 @@ Xcode에서:
 ```swift
 import BLZTar
 
-// 아카이브 (gzip 포함)
+// Archive (with gzip)
 let archOpt = BLZTarArchiveOptions(
     gzip: true,
     gzipEngine: .zlib,
@@ -41,7 +41,7 @@ try BLZTar.archive(
     options: archOpt
 )
 
-// 추출
+// Extract
 let extOpt = BLZTarExtractOptions(
     onProgressBytes: { done, total in
         print("Extract: \(done)/\(total)")
@@ -57,18 +57,18 @@ try BLZTar.extract(
 
 ## Options
 
-| Option | 설명 |
-|-------|------|
-| `gzip` | `.tar.gz` 생성 여부 |
-| `gzipEngine` | `.zlib` (기본) 또는 `.nioExtras` |
-| `onProgressBytes` | 전체 진행률 콜백 (processed, total) |
-| `reportGranularityBytes` | 콜백 호출 최소 간격 (기본 512KB) |
-| `onProgressPerFile` | 파일별 진행률 콜백 |
+| Option | Description |
+|-------|-------------|
+| `gzip` | Generate `.tar.gz` archive |
+| `gzipEngine` | `.zlib` (default) or `.nioExtras` |
+| `onProgressBytes` | Global byte progress callback `(processed, total)` |
+| `reportGranularityBytes` | Minimum byte interval for callback (default 512KB) |
+| `onProgressPerFile` | Per-file progress callback |
 
 ## Enabling swift-nio-extras
 
-- `Package.swift`의 의존성에 `swift-nio-extras` 추가 후
-- `BLZTarArchiveOptions.gzipEngine = .nioExtras` 로 설정
+- Add `swift-nio-extras` dependency in `Package.swift`
+- Set `BLZTarArchiveOptions.gzipEngine = .nioExtras`
 
 ## License
 
