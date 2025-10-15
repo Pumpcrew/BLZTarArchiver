@@ -17,7 +17,7 @@ In Xcode:
 - Or add to your `Package.swift` manually:
 
 ```swift
-.package(url: "https://github.com/your-org/BLZTar.git", from: "1.0.0")
+.package(url: "https://github.com/Pumpcrew/BLZTarArchiver.git", from: "1.0.0")
 ```
 
 ## Usage

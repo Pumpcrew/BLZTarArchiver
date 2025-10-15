@@ -17,7 +17,7 @@ Xcode에서:
 - 또는 `Package.swift`에 직접 추가:
 
 ```swift
-.package(url: "https://github.com/your-org/BLZTar.git", from: "1.0.0")
+.package(url: "https://github.com/Pumpcrew/BLZTarArchiver.git", from: "1.0.0")
 ```
 
 ## Usage
