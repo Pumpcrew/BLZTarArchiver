@@ -13,7 +13,7 @@ Pure Swift TAR/USTAR archiver with **PAX extended headers** and **proper GZIP su
 ## Installation (Swift Package Manager)
 
 Xcode에서:
-- File → Add Packages → `https://github.com/your-org/BLZTar.git`
+- File → Add Packages → `https://github.com/Pumpcrew/BLZTarArchiver.git`
 - 또는 `Package.swift`에 직접 추가:
 
 ```swift

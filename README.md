@@ -13,7 +13,7 @@ Pure Swift TAR/USTAR archiver with **PAX extended headers** and **proper GZIP su
 ## Installation (Swift Package Manager)
 
 In Xcode:
-- Go to **File → Add Packages** → `https://github.com/your-org/BLZTar.git`
+- Go to **File → Add Packages** → `https://github.com/Pumpcrew/BLZTarArchiver.git`
 - Or add to your `Package.swift` manually:
 
 ```swift
