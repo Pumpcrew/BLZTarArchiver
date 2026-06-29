@@ -45,7 +45,8 @@ func parsePAX(_ data: Data) throws -> PAXRecord {
     let rec = PAXRecord()
     while idx < data.count {
         var lenStr = ""
-        while idx < data.count, let ch = UnicodeScalar(data[idx]), ch >= "0" && ch <= "9" {
+        while idx < data.count, data[idx] >= 0x30 && data[idx] <= 0x39 {
+            let ch = UnicodeScalar(data[idx])
             lenStr.append(Character(ch)); idx += 1
         }
         guard idx < data.count, data[idx] == 0x20 else { throw TarError.paxMalformed }

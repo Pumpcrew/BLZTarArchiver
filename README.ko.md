@@ -7,7 +7,7 @@ Pure Swift TAR/USTAR archiver with **PAX extended headers** and **proper GZIP su
 - ✅ **USTAR + PAX 지원** — 255바이트 넘는 경로나 긴 파일명 완벽 보존
 - ✅ **정식 GZIP 헤더/푸터** — zlib 기반 gzip, 100% 호환 (옵션으로 swift-nio-extras 사용 가능)
 - ✅ **실시간 진행률 콜백** — 전체 바이트 기준, 파일별 진행률까지 지원
-- ✅ iOS 13+, macOS 11+, tvOS 13+, watchOS 6+ 지원
+- ✅ iOS 15+, macOS 11+, tvOS 13+, watchOS 6+ 지원
 - ✅ 외부 의존성 없음 (선택적으로 swift-nio-extras)
 
 ## Installation (Swift Package Manager)

@@ -59,10 +59,10 @@ func computeTotalBytesForExtraction(tarURL: URL) throws -> Int64 {
     defer { try? h.close() }
     var total: Int64 = 0
     while true {
-        guard let header = try? h.read(upToCount: 512), let header, header.count == 512 else { break }
+        guard let header = try? h.read(upToCount: 512), header.count == 512 else { break }
         total += 512
         if header == Data(repeating: 0, count: 512) {
-            if let z = try? h.read(upToCount: 512), let z, z.count == 512 { total += 512 }
+            if let z = try? h.read(upToCount: 512), z.count == 512 { total += 512 }
             break
         }
         guard let th = try? TarHeader.decode(from: header) else { throw TarError.invalidHeader }

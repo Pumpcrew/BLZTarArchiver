@@ -56,7 +56,7 @@ public final class BLZTar {
 
                 var perFileDone: Int64 = 0
                 let buf = 256 * 1024
-                while let chunk = try? inH.read(upToCount: buf), let chunk, !chunk.isEmpty {
+                while let chunk = try? inH.read(upToCount: buf), !chunk.isEmpty {
                     outHandle.write(chunk)
                     let c = Int64(chunk.count)
                     emitter.add(c)
@@ -127,12 +127,12 @@ public final class BLZTar {
         var pendingPAX: PAXRecord? = nil
 
         while true {
-            guard let headerData = try? inHandle.read(upToCount: 512), let headerData else { break }
+            guard let headerData = try? inHandle.read(upToCount: 512) else { break }
             if headerData.count == 0 { break }
             emitter.add(512)
 
             if headerData == Data(repeating: 0, count: 512) {
-                if let z = try? inHandle.read(upToCount: 512), let z, z.count == 512 { emitter.add(512) }
+                if let z = try? inHandle.read(upToCount: 512), z.count == 512 { emitter.add(512) }
                 break
             }
 
@@ -201,7 +201,7 @@ func readExact(handle: FileHandle, size: Int) throws -> Data {
     var remaining = size
     var out = Data()
     while remaining > 0 {
-        guard let chunk = try? handle.read(upToCount: remaining), let chunk, !chunk.isEmpty else {
+        guard let chunk = try? handle.read(upToCount: remaining), !chunk.isEmpty else {
             throw TarError.ioFailed("Unexpected EOF")
         }
         out.append(chunk)
