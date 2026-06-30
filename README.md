@@ -1,5 +1,8 @@
 # BLZTar
 
+[![Swift Version Compatibility](https://img.shields.io/endpoint?url=https://swiftpackageindex.com/api/packages/Pumpcrew/BLZTarArchiver/badge?type=swift-versions)](https://swiftpackageindex.com/Pumpcrew/BLZTarArchiver)
+[![Platform Compatibility](https://img.shields.io/endpoint?url=https://swiftpackageindex.com/api/packages/Pumpcrew/BLZTarArchiver/badge?type=platforms)](https://swiftpackageindex.com/Pumpcrew/BLZTarArchiver)
+
 Pure Swift TAR/USTAR archiver with **PAX extended headers** and **proper GZIP support**, including **real-time progress reporting**.
 
 ## Features
