@@ -4,8 +4,17 @@ import Foundation
 public final class BLZTar {
 
     public static func archive(directory: URL, to outURL: URL, options: BLZTarArchiveOptions = .init()) throws {
-        let fm = FileManager.default
         let plan = try planArchive(from: directory, excludes: options.excludes)
+        try archive(plan: plan, to: outURL, options: options)
+    }
+
+    public static func archive(files: [URL], to outURL: URL, options: BLZTarArchiveOptions = .init()) throws {
+        let plan = try planArchive(files: files, excludes: options.excludes)
+        try archive(plan: plan, to: outURL, options: options)
+    }
+
+    private static func archive(plan: [TarPlannedEntry], to outURL: URL, options: BLZTarArchiveOptions) throws {
+        let fm = FileManager.default
         let totalTarBytes = computeTotalBytesForArchive(plan)
         let tarURL = options.gzip ? outURL.deletingPathExtension().appendingPathExtension("tar") : outURL
 
@@ -16,9 +25,9 @@ public final class BLZTar {
         let emitter = ProgressEmitter(total: totalTarBytes, granularity: options.reportGranularityBytes, cb: options.onProgressBytes)
 
         for entry in plan {
-            let fullURL = directory.appendingPathComponent(entry.path)
-            let perms = try modeOf(fullURL)
-            let mtime = try mtimeOf(fullURL)
+            let sourceURL = entry.sourceURL
+            let perms = try modeOf(sourceURL)
+            let mtime = try mtimeOf(sourceURL)
 
             if entry.needsPAX {
                 let paxData = buildPAX(path: entry.path)
@@ -51,7 +60,7 @@ public final class BLZTar {
                 let h = try fileHeader.encode()
                 outHandle.write(h); emitter.add(Int64(h.count))
 
-                guard let inH = try? FileHandle(forReadingFrom: fullURL) else { throw TarError.ioFailed("Cannot open \(fullURL.path)") }
+                guard let inH = try? FileHandle(forReadingFrom: sourceURL) else { throw TarError.ioFailed("Cannot open \(sourceURL.path)") }
                 defer { try? inH.close() }
 
                 var perFileDone: Int64 = 0
@@ -61,7 +70,7 @@ public final class BLZTar {
                     let c = Int64(chunk.count)
                     emitter.add(c)
                     perFileDone += c
-                    options.onProgressPerFile?(fullURL, perFileDone, entry.size)
+                    options.onProgressPerFile?(sourceURL, perFileDone, entry.size)
                 }
                 let pad = (512 - (Int(entry.size) % 512)) % 512
                 if pad > 0 { let z = Data(repeating: 0, count: pad); outHandle.write(z); emitter.add(Int64(pad)) }

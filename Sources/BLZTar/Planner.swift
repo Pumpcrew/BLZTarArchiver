@@ -2,12 +2,18 @@
 import Foundation
 
 final class TarPlannedEntry {
+    let sourceURL: URL
     let path: String
     let isDir: Bool
     let size: Int64
     let needsPAX: Bool
-    init(path: String, isDir: Bool, size: Int64, needsPAX: Bool) {
-        self.path = path; self.isDir = isDir; self.size = size; self.needsPAX = needsPAX
+
+    init(sourceURL: URL, path: String, isDir: Bool, size: Int64, needsPAX: Bool) {
+        self.sourceURL = sourceURL
+        self.path = path
+        self.isDir = isDir
+        self.size = size
+        self.needsPAX = needsPAX
     }
 }
 
@@ -27,11 +33,38 @@ func planArchive(from directory: URL, excludes: [String]) throws -> [TarPlannedE
         let isDir = rv.isDirectory ?? false
         let isReg = rv.isRegularFile ?? false
         if isDir {
-            items.append(.init(path: rel, isDir: true, size: 0, needsPAX: needsPAX(forPath: rel)))
+            items.append(.init(sourceURL: url, path: rel, isDir: true, size: 0, needsPAX: needsPAX(forPath: rel)))
         } else if isReg {
-            items.append(.init(path: rel, isDir: false, size: Int64(rv.fileSize ?? 0), needsPAX: needsPAX(forPath: rel)))
+            items.append(.init(sourceURL: url, path: rel, isDir: false, size: Int64(rv.fileSize ?? 0), needsPAX: needsPAX(forPath: rel)))
         }
     }
+    return items
+}
+
+func planArchive(files: [URL], excludes: [String]) throws -> [TarPlannedEntry] {
+    var items: [TarPlannedEntry] = []
+    var archivedPaths = Set<String>()
+
+    for fileURL in files {
+        let standardizedURL = fileURL.standardizedFileURL
+        let archivePath = standardizedURL.lastPathComponent
+        if archivePath.isEmpty || shouldExclude(archivePath, patterns: excludes) { continue }
+        guard archivedPaths.insert(archivePath).inserted else {
+            throw TarError.ioFailed("Duplicate archive path \(archivePath)")
+        }
+
+        let rv = try standardizedURL.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+        guard rv.isRegularFile == true else {
+            throw TarError.ioFailed("Only regular files can be archived with archive(files:to:options:): \(standardizedURL.path)")
+        }
+
+        items.append(.init(sourceURL: standardizedURL,
+                           path: archivePath,
+                           isDir: false,
+                           size: Int64(rv.fileSize ?? 0),
+                           needsPAX: needsPAX(forPath: archivePath)))
+    }
+
     return items
 }
 
