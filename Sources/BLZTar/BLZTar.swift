@@ -2,6 +2,30 @@
 import Foundation
 
 public final class BLZTar {
+    private static let cancellationLock = NSLock()
+    private static var cancellationRequested = false
+
+    public static func cancel() {
+        cancellationLock.lock()
+        cancellationRequested = true
+        cancellationLock.unlock()
+    }
+
+    private static func resetCancellation() {
+        cancellationLock.lock()
+        cancellationRequested = false
+        cancellationLock.unlock()
+    }
+
+    private static func isCancellationRequested() -> Bool {
+        cancellationLock.lock()
+        defer { cancellationLock.unlock() }
+        return cancellationRequested
+    }
+
+    private static func checkCancellation() throws {
+        if isCancellationRequested() { throw TarError.cancelled }
+    }
 
     public static func archive(directory: URL, to outURL: URL, options: BLZTarArchiveOptions = .init()) throws {
         let plan = try planArchive(from: directory, excludes: options.excludes)
@@ -14,89 +38,107 @@ public final class BLZTar {
     }
 
     private static func archive(plan: [TarPlannedEntry], to outURL: URL, options: BLZTarArchiveOptions) throws {
+        resetCancellation()
         let fm = FileManager.default
         let totalTarBytes = computeTotalBytesForArchive(plan)
         let tarURL = options.gzip ? outURL.deletingPathExtension().appendingPathExtension("tar") : outURL
 
         fm.createFile(atPath: tarURL.path, contents: nil, attributes: nil)
         guard let outHandle = try? FileHandle(forWritingTo: tarURL) else { throw TarError.ioFailed("Cannot open output file") }
-        defer { try? outHandle.close() }
-
-        let emitter = ProgressEmitter(total: totalTarBytes, granularity: options.reportGranularityBytes, cb: options.onProgressBytes)
-
-        for entry in plan {
-            let sourceURL = entry.sourceURL
-            let perms = try modeOf(sourceURL)
-            let mtime = try mtimeOf(sourceURL)
-
-            if entry.needsPAX {
-                let paxData = buildPAX(path: entry.path)
-                let paxHeader = TarHeader(path: paxHeaderName(for: entry.path),
-                                          fileSize: Int64(paxData.count),
-                                          typeflag: .paxExtended,
-                                          permissions: 0o644,
-                                          mtime: mtime)
-                let h = try paxHeader.encode()
-                outHandle.write(h); emitter.add(Int64(h.count))
-                outHandle.write(paxData); emitter.add(Int64(paxData.count))
-                let pad = (512 - (paxData.count % 512)) % 512
-                if pad > 0 { let z = Data(repeating: 0, count: pad); outHandle.write(z); emitter.add(Int64(pad)) }
-            }
-
-            if entry.isDir {
-                let dirHeader = TarHeader(path: ustarCompatibleName(entry.path),
-                                          fileSize: 0,
-                                          typeflag: .directory,
-                                          permissions: perms,
-                                          mtime: mtime)
-                let h = try dirHeader.encode()
-                outHandle.write(h); emitter.add(Int64(h.count))
-            } else {
-                let fileHeader = TarHeader(path: ustarCompatibleName(entry.path),
-                                           fileSize: entry.size,
-                                           typeflag: .regular,
-                                           permissions: perms,
-                                           mtime: mtime)
-                let h = try fileHeader.encode()
-                outHandle.write(h); emitter.add(Int64(h.count))
-
-                guard let inH = try? FileHandle(forReadingFrom: sourceURL) else { throw TarError.ioFailed("Cannot open \(sourceURL.path)") }
-                defer { try? inH.close() }
-
-                var perFileDone: Int64 = 0
-                let buf = 256 * 1024
-                while let chunk = try? inH.read(upToCount: buf), !chunk.isEmpty {
-                    outHandle.write(chunk)
-                    let c = Int64(chunk.count)
-                    emitter.add(c)
-                    perFileDone += c
-                    options.onProgressPerFile?(sourceURL, perFileDone, entry.size)
-                }
-                let pad = (512 - (Int(entry.size) % 512)) % 512
-                if pad > 0 { let z = Data(repeating: 0, count: pad); outHandle.write(z); emitter.add(Int64(pad)) }
+        var didCancel = false
+        defer {
+            try? outHandle.close()
+            if didCancel {
+                try? fm.removeItem(at: tarURL)
+                if options.gzip { try? fm.removeItem(at: outURL) }
             }
         }
 
-        let eof = Data(repeating: 0, count: 1024)
-        outHandle.write(eof); emitter.add(1024)
-        emitter.finish()
+        let emitter = ProgressEmitter(total: totalTarBytes, granularity: options.reportGranularityBytes, cb: options.onProgressBytes)
 
-        if options.gzip {
-            switch options.gzipEngine {
-            case .zlib:
-                #if canImport(zlib)
-                try GzipZlib.gzip(input: tarURL, output: outURL, granularity: options.reportGranularityBytes, cb: options.onProgressBytes)
-                #else
-                throw TarError.gzipUnsupportedEngine
-                #endif
-            case .nioExtras:
-                #if canImport(NIOCore) && canImport(NIOExtras)
-                try GzipNIOExtras.gzip(input: tarURL, output: outURL, granularity: options.reportGranularityBytes, cb: options.onProgressBytes)
-                #else
-                throw TarError.gzipUnsupportedEngine
-                #endif
+        do {
+            try checkCancellation()
+
+            for entry in plan {
+                try checkCancellation()
+                let sourceURL = entry.sourceURL
+                let perms = try modeOf(sourceURL)
+                let mtime = try mtimeOf(sourceURL)
+
+                if entry.needsPAX {
+                    let paxData = buildPAX(path: entry.path)
+                    let paxHeader = TarHeader(path: paxHeaderName(for: entry.path),
+                                              fileSize: Int64(paxData.count),
+                                              typeflag: .paxExtended,
+                                              permissions: 0o644,
+                                              mtime: mtime)
+                    let h = try paxHeader.encode()
+                    outHandle.write(h); emitter.add(Int64(h.count))
+                    outHandle.write(paxData); emitter.add(Int64(paxData.count))
+                    let pad = (512 - (paxData.count % 512)) % 512
+                    if pad > 0 { let z = Data(repeating: 0, count: pad); outHandle.write(z); emitter.add(Int64(pad)) }
+                }
+
+                if entry.isDir {
+                    let dirHeader = TarHeader(path: ustarCompatibleName(entry.path),
+                                              fileSize: 0,
+                                              typeflag: .directory,
+                                              permissions: perms,
+                                              mtime: mtime)
+                    let h = try dirHeader.encode()
+                    outHandle.write(h); emitter.add(Int64(h.count))
+                } else {
+                    let fileHeader = TarHeader(path: ustarCompatibleName(entry.path),
+                                               fileSize: entry.size,
+                                               typeflag: .regular,
+                                               permissions: perms,
+                                               mtime: mtime)
+                    let h = try fileHeader.encode()
+                    outHandle.write(h); emitter.add(Int64(h.count))
+
+                    guard let inH = try? FileHandle(forReadingFrom: sourceURL) else { throw TarError.ioFailed("Cannot open \(sourceURL.path)") }
+                    defer { try? inH.close() }
+
+                    var perFileDone: Int64 = 0
+                    let buf = 256 * 1024
+                    while let chunk = try? inH.read(upToCount: buf), !chunk.isEmpty {
+                        try checkCancellation()
+                        outHandle.write(chunk)
+                        let c = Int64(chunk.count)
+                        emitter.add(c)
+                        perFileDone += c
+                        options.onProgressPerFile?(sourceURL, perFileDone, entry.size)
+                    }
+                    let pad = (512 - (Int(entry.size) % 512)) % 512
+                    if pad > 0 { let z = Data(repeating: 0, count: pad); outHandle.write(z); emitter.add(Int64(pad)) }
+                }
             }
-            try? fm.removeItem(at: tarURL)
+
+            try checkCancellation()
+            let eof = Data(repeating: 0, count: 1024)
+            outHandle.write(eof); emitter.add(1024)
+            emitter.finish()
+
+            if options.gzip {
+                switch options.gzipEngine {
+                case .zlib:
+                    #if canImport(zlib)
+                    try GzipZlib.gzip(input: tarURL, output: outURL, granularity: options.reportGranularityBytes, cb: options.onProgressBytes, shouldCancel: isCancellationRequested)
+                    #else
+                    throw TarError.gzipUnsupportedEngine
+                    #endif
+                case .nioExtras:
+                    #if canImport(NIOCore) && canImport(NIOExtras)
+                    try GzipNIOExtras.gzip(input: tarURL, output: outURL, granularity: options.reportGranularityBytes, cb: options.onProgressBytes, shouldCancel: isCancellationRequested)
+                    #else
+                    throw TarError.gzipUnsupportedEngine
+                    #endif
+                }
+                try? fm.removeItem(at: tarURL)
+            }
+        } catch TarError.cancelled {
+            didCancel = true
+            throw TarError.cancelled
         }
     }
 

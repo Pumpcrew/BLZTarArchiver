@@ -4,7 +4,7 @@ import Foundation
 import zlib
 
 final class GzipZlib {
-    static func gzip(input: URL, output: URL, granularity: Int64, cb: ((Int64, Int64) -> Void)?) throws {
+    static func gzip(input: URL, output: URL, granularity: Int64, cb: ((Int64, Int64) -> Void)?, shouldCancel: () -> Bool = { false }) throws {
         let inData = try Data(contentsOf: input, options: .mappedIfSafe)
         let emitter = ProgressEmitter(total: Int64(inData.count), granularity: granularity, cb: cb)
 
@@ -19,6 +19,7 @@ final class GzipZlib {
         var snapshot: Int64 = 0
 
         try inData.withUnsafeBytes { (srcPtr: UnsafeRawBufferPointer) in
+            if shouldCancel() { throw TarError.cancelled }
             stream.next_in = UnsafeMutablePointer<Bytef>(mutating: srcPtr.bindMemory(to: Bytef.self).baseAddress!)
             stream.avail_in = uInt(srcPtr.count)
 
@@ -26,6 +27,7 @@ final class GzipZlib {
             defer { outBuf.deallocate() }
 
             repeat {
+                if shouldCancel() { throw TarError.cancelled }
                 stream.next_out = outBuf
                 stream.avail_out = uInt(chunk)
                 let ret = deflate(&stream, stream.avail_in > 0 ? Z_NO_FLUSH : Z_FINISH)
@@ -37,11 +39,12 @@ final class GzipZlib {
                 snapshot = now
             } while stream.avail_out == 0
         }
+        if shouldCancel() { throw TarError.cancelled }
         emitter.finish()
         try outData.write(to: output)
     }
 
-    static func gunzip(input: URL, output: URL, granularity: Int64, cb: ((Int64, Int64) -> Void)?) throws {
+    static func gunzip(input: URL, output: URL, granularity: Int64, cb: ((Int64, Int64) -> Void)?, shouldCancel: () -> Bool = { false }) throws {
         let inData = try Data(contentsOf: input, options: .mappedIfSafe)
         let emitter = ProgressEmitter(total: Int64(inData.count), granularity: granularity, cb: cb)
 
@@ -56,6 +59,7 @@ final class GzipZlib {
         var snapshot: Int64 = 0
 
         try inData.withUnsafeBytes { (srcPtr: UnsafeRawBufferPointer) in
+            if shouldCancel() { throw TarError.cancelled }
             stream.next_in = UnsafeMutablePointer<Bytef>(mutating: srcPtr.bindMemory(to: Bytef.self).baseAddress!)
             stream.avail_in = uInt(srcPtr.count)
 
@@ -64,6 +68,7 @@ final class GzipZlib {
 
             var ret: Int32
             repeat {
+                if shouldCancel() { throw TarError.cancelled }
                 stream.next_out = outBuf
                 stream.avail_out = uInt(chunk)
                 ret = inflate(&stream, Z_NO_FLUSH)
@@ -77,6 +82,7 @@ final class GzipZlib {
                 snapshot = now
             } while ret != Z_STREAM_END
         }
+        if shouldCancel() { throw TarError.cancelled }
         emitter.finish()
         try outData.write(to: output)
     }

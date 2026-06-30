@@ -8,6 +8,7 @@ enum TarError: Error {
     case unsupportedType
     case paxMalformed
     case gzipUnsupportedEngine
+    case cancelled
 }
 
 final class TarHeader {

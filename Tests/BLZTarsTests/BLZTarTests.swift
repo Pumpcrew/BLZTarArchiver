@@ -44,4 +44,23 @@ final class BLZTarTests: XCTestCase {
         XCTAssertThrowsError(try BLZTar.archive(files: [firstFile, secondFile],
                                                 to: root.appendingPathComponent("duplicate.tar")))
     }
+    func testArchiveCanBeCancelledFromProgressCallback() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let sourceDir = root.appendingPathComponent("source")
+        try fm.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: root) }
+
+        let largeFile = sourceDir.appendingPathComponent("large.bin")
+        let data = Data(repeating: 0x41, count: 1024 * 1024)
+        try data.write(to: largeFile)
+
+        let archiveURL = root.appendingPathComponent("cancelled.tar")
+        let options = BLZTarArchiveOptions(onProgressBytes: { _, _ in
+            BLZTar.cancel()
+        }, reportGranularityBytes: 1)
+
+        XCTAssertThrowsError(try BLZTar.archive(files: [largeFile], to: archiveURL, options: options))
+        XCTAssertFalse(fm.fileExists(atPath: archiveURL.path))
+    }
 }
